@@ -8,6 +8,7 @@ from io import BytesIO
 IN_MEAN = np.array([0.485, 0.456, 0.406])
 IN_STD = np.array([0.229, 0.224, 0.225])
 
+DS_PATH_IMAGENET = "imagenet"
 DS_PATH_IMAGENET1K = "imagenet-1k"
 DS_PATH_IMAGENETTE = "frgfm/imagenette"
 
@@ -63,7 +64,7 @@ def get_cv_dataset(path=DS_PATH_IMAGENETTE,
                    name=None,  # "full_size"
                    batch_size=1,
                    image_size=224,
-                   split=None,  # 'train'
+                   split="train",  # 'train'
                    shuffle=True,
                    num_workers=1,
                    transform=None,
@@ -71,11 +72,38 @@ def get_cv_dataset(path=DS_PATH_IMAGENETTE,
                    return_type='pair'):
     if return_type not in ['image_only', 'pair', 'dict']:
         raise ValueError("return_type must be 'image_only' or 'pair' or 'dict'")
-    dataset = load_dataset(path, name, split=split, trust_remote_code=True)
-    custom_dataset = ImageLabelDataSet(dataset, transform=transform, return_type=return_type, split=split,
-                                       image_size=image_size)
 
-    if return_loader:
-        return DataLoader(custom_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+    # Load dataset with all splits
+    dataset = load_dataset(path, name, trust_remote_code=True)
+
+    if isinstance(split, str):
+        custom_dataset = ImageLabelDataSet(dataset, transform=transform, return_type=return_type, split=split,
+                                           image_size=image_size)
+        if return_loader:
+            return DataLoader(custom_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+        else:
+            return custom_dataset
     else:
-        return custom_dataset
+        custom_datasets = {}
+        for split_name in dataset.keys():
+            custom_datasets[split_name] = ImageLabelDataSet(dataset, transform=transform, return_type=return_type,
+                                                            split=split_name, image_size=image_size)
+        if return_loader:
+            for split_name in custom_datasets:
+                custom_datasets[split_name] = DataLoader(custom_datasets[split_name], batch_size=batch_size,
+                                                         shuffle=shuffle, num_workers=num_workers)
+        return custom_datasets
+
+
+if __name__ == "__main__":
+    datasets = get_cv_dataset(path=DS_PATH_IMAGENET1K, image_size=256,
+                              split=None,
+                              batch_size=2,
+                              num_workers=2,
+                              return_type="dict")
+    validation_dataset = datasets["validation"]
+    print(validation_dataset)
+
+    datasets = get_cv_dataset(path=DS_PATH_IMAGENETTE, return_loader=False, name='full_size', split=None)
+    validation_dataset = datasets["validation"]
+    print(validation_dataset)
