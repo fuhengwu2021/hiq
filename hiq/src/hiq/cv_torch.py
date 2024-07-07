@@ -173,6 +173,7 @@ def _get_datasplit(d, s):
 
 try:
     import lightning
+    from torch.utils.data.dataloader import default_collate
 
 
     class DataModuleFromConfig(lightning.LightningDataModule):
@@ -185,6 +186,7 @@ try:
                 config_name="full_size",
                 split=None,
                 shuffle=True,
+                convert_rgb=True,
         ):
             super().__init__()
             self.dataset_name = dataset_name
@@ -195,6 +197,7 @@ try:
             self.config_name = config_name
             self.split = split
             self.shuffle = shuffle
+            self.convert_rgb = convert_rgb
 
             self.train_dataloader = self._train_dataloader
             self.val_dataloader = self._val_dataloader
@@ -208,6 +211,7 @@ try:
                 batch_size=self.batch_size,
                 num_workers=self.num_workers,
                 return_type="dict",
+                convert_rgb=self.convert_rgb,
             )
 
         def _train_dataloader(self):
@@ -216,7 +220,7 @@ try:
                 batch_size=self.batch_size,
                 num_workers=self.num_workers,
                 shuffle=self.shuffle,
-                collate_fn=custom_collate,
+                collate_fn=default_collate,
                 pin_memory=True,
             )
 
@@ -225,7 +229,7 @@ try:
                 _get_datasplit(self.datasets, "validation"),
                 batch_size=self.batch_size,
                 num_workers=self.num_workers,
-                collate_fn=custom_collate,
+                collate_fn=default_collate,
                 shuffle=False,
                 pin_memory=True,
             )
@@ -235,7 +239,7 @@ try:
                 _get_datasplit(self.datasets, "test"),
                 batch_size=self.batch_size,
                 num_workers=self.num_workers,
-                collate_fn=custom_collate,
+                collate_fn=default_collate,
                 shuffle=False,
                 pin_memory=True,
             )
