@@ -17,16 +17,28 @@ DS_PATH_OPENIMAGES = "dalle-mini/open-images"
 DS_PATH_COCO30K = "UCSC-VLAA/Recap-COCO-30K"
 DS_PATH_COCOPERSON = "Hamdy20002/COCO_Person"
 DS_PATH_COCOCAP2017 = "lmms-lab/COCO-Caption2017"
-DS_PATH_STDDOGS = "amaye15/stanford-dogs"
+DS_PATH_STDDOGS = "amaye15/stanford-dogs" # 14.4K
 DS_PATH_OCRVQA = "howard-hou/OCR-VQA"
 DS_PATH_OCRINVREC = "mychen76/invoices-and-receipts_ocr_v1"
 DS_PATH_FASHION4 = "detection-datasets/fashionpedia_4_categories"
-DS_PATH_CELEBA = "goodfellowliu/CelebA"
-DS_PATH_COCO122 = "detection-datasets/coco"
+DS_PATH_CELEBA_203K = "goodfellowliu/CelebA"
+DS_PATH_CELEBA_HQ_1K = "Rahafbk/celebA-HQ"
+DS_PATH_COCO122_117K = "detection-datasets/coco" # 117K
+DS_PATH_PHOTOCHAT_HQ_120 = "friedrichor/PhotoChat_120_square_HQ"
+DS_PATH_FASHION_MNIST = "fashion_mnist" # 60K, 10K
+DS_PATH_MNIST = "mnist"
+DS_PATH_PLANTS_600 = "swueste/plants"
+DS_PATH_HF_TEST = "hf-internal-testing/dummy_image_text_data"
+DS_PATH_DOGFOOD_3K = "sasha/dog-food"
+DS_PATH_OXFLOWER_7K = "nelorth/oxford-flowers" #8k
+DS_PATH_OXPET_3K = "timm/oxford-iiit-pet"
+DS_PATH_BEANS_1K = "AI-Lab-Makerere/beans"
+DS_PATH_APPLE_500 = "Francesco/apples-fvpl5"
 
 
 class ImageLabelDataSet(Dataset):
-    def __init__(self, dataset, transform=None, return_type='dict', split='train', image_size=224, convert_rgb=True):
+    def __init__(self, dataset, transform=None, return_type='dict', split='train', image_size=224, convert_rgb=True,
+                 img_key=None):
         if isinstance(dataset, DatasetDict) and (split is None or split in dataset):
             split = split or "train"
             self.dataset = dataset[split]
@@ -35,7 +47,10 @@ class ImageLabelDataSet(Dataset):
         self.transform = transform
         self.return_type = return_type
         self.image_size = image_size
-        self.img_key = 'image' if 'image' in self.dataset.column_names else 'img'
+        if img_key is None:
+            self.img_key = 'image' if 'image' in self.dataset.column_names else 'img'
+        else:
+            self.img_key = img_key
         self.label_key = 'label' if 'label' in self.dataset.column_names else 'lbl'
         self.convert_rgb = convert_rgb
         if self.label_key not in self.dataset.column_names:
@@ -50,7 +65,7 @@ class ImageLabelDataSet(Dataset):
             contains_resize = False
             if self.transform:
                 for t in self.transform.transforms:
-                    if isinstance(t, transforms.Resize):
+                    if isinstance(t, transforms.Resize) or isinstance(t, transforms.RandomResizedCrop):
                         contains_resize = True
                         break
             if not contains_resize and image_size is not None:
@@ -74,6 +89,8 @@ class ImageLabelDataSet(Dataset):
 
     def __getitem__(self, idx):
         item = self.dataset[idx]
+        # if self.img_key not in item:
+        #    print(item.keys())
         img = item[self.img_key]
         if self.convert_rgb and img.mode != 'RGB':
             img = img.convert('RGB')
@@ -94,21 +111,23 @@ class ImageLabelDataSet(Dataset):
         elif self.return_type == 'pair':
             return img, item[self.label_key] if self.label_key else ''
         else:
+            del item[self.img_key]
             item['image'] = img
             return item
 
 
 def get_cv_dataset(path=DS_PATH_IMAGENETTE,
-                   name=None,  # "full_size"
+                   name=None,
                    batch_size=1,
-                   image_size=None, # original size
-                   split=None,  # 'train'
+                   image_size=None,
+                   split=None,
                    shuffle=True,
                    num_workers=4,
                    transform=None,
                    return_loader=False,
                    return_type='pair',
                    convert_rgb=False,
+                   img_key=None,
                    **loader_params):
     if return_type not in ['image_only', 'pair', 'dict']:
         raise ValueError("return_type must be 'image_only' or 'pair' or 'dict'")
@@ -121,6 +140,12 @@ def get_cv_dataset(path=DS_PATH_IMAGENETTE,
         name = None
     elif path == DS_PATH_OPENIMAGES:
         name = "default"
+    elif path == DS_PATH_STDDOGS:
+        img_key = 'pixel_values'
+    elif path == DS_PATH_MNIST:
+        name = 'mnist'
+    elif path == DS_PATH_FASHION_MNIST:
+        name = 'fashion_mnist'
     dataset = load_dataset(path, name, trust_remote_code=True, split=split)
 
     if isinstance(split, str):
@@ -129,7 +154,9 @@ def get_cv_dataset(path=DS_PATH_IMAGENETTE,
                                            return_type=return_type,
                                            split=split,
                                            image_size=image_size,
-                                           convert_rgb=convert_rgb)
+                                           convert_rgb=convert_rgb,
+                                           img_key=img_key
+                                           )
         if return_loader:
             return DataLoader(custom_dataset,
                               batch_size=batch_size,
@@ -139,35 +166,43 @@ def get_cv_dataset(path=DS_PATH_IMAGENETTE,
         else:
             return custom_dataset
     else:
-        custom_datasets = {}
+        datasets_or_loader = {}
         for split_name in dataset.keys():
-            custom_datasets[split_name] = ImageLabelDataSet(dataset,
-                                                            transform=transform,
-                                                            return_type=return_type,
-                                                            split=split_name,
-                                                            image_size=image_size,
-                                                            convert_rgb=convert_rgb)
+            datasets_or_loader[split_name] = ImageLabelDataSet(dataset,
+                                                               transform=transform,
+                                                               return_type=return_type,
+                                                               split=split_name,
+                                                               image_size=image_size,
+                                                               convert_rgb=convert_rgb,
+                                                               img_key=img_key)
         if return_loader:
-            for split_name in custom_datasets:
-                custom_datasets[split_name] = DataLoader(dataset=custom_datasets[split_name],
-                                                         batch_size=batch_size,
-                                                         shuffle=shuffle,
-                                                         num_workers=num_workers,
-                                                         **loader_params)
-        return custom_datasets
+            for split_name in datasets_or_loader:
+                datasets_or_loader[split_name] = DataLoader(dataset=datasets_or_loader[split_name],
+                                                            batch_size=batch_size,
+                                                            shuffle=shuffle,
+                                                            num_workers=num_workers,
+                                                            **loader_params)
+        return datasets_or_loader
 
 
-def _get_datasplit(d, s):
+def get_datasplit(d, s):
     if isinstance(d, dict):
         if s in ("validation", 'val'):
             if 'val' in d:
                 return d['val']
             if 'validation' in d:
                 return d['validation']
+            if 'test' in d:
+                print(f"🔥 Warning: no validation set, use test set instead.")
+                return d['test']
         if s in d:
             return d[s]
         else:
-            raise f"error: no split:{s} in dataset:{d}!"
+            if s == 'test' and s not in d:
+                return get_datasplit(d, 'validation')
+            err_msg = f"☠ error: no split:{s} in dataset:{d}!"
+            print(err_msg)
+            return d['train']
     return d
 
 
@@ -216,7 +251,7 @@ try:
 
         def _train_dataloader(self):
             return DataLoader(
-                _get_datasplit(self.datasets, "train"),
+                get_datasplit(self.datasets, "train"),
                 batch_size=self.batch_size,
                 num_workers=self.num_workers,
                 shuffle=self.shuffle,
@@ -226,7 +261,7 @@ try:
 
         def _val_dataloader(self):
             return DataLoader(
-                _get_datasplit(self.datasets, "validation"),
+                get_datasplit(self.datasets, "validation"),
                 batch_size=self.batch_size,
                 num_workers=self.num_workers,
                 collate_fn=default_collate,
@@ -236,7 +271,7 @@ try:
 
         def _test_dataloader(self):
             return DataLoader(
-                _get_datasplit(self.datasets, "test"),
+                get_datasplit(self.datasets, "test"),
                 batch_size=self.batch_size,
                 num_workers=self.num_workers,
                 collate_fn=default_collate,
@@ -255,43 +290,51 @@ def imshow(img):
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
     plt.show()
 
-def verify_datasets(dataset_names=('fashion_mnist',)):  #"cifar10", 'mnist', DS_PATH_CELEBA
-    from tqdm import tqdm
 
-    transform = transforms.Compose([
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    ])
+def verify_datasets(dataset_names=('fashion_mnist',), sz = 128):  # "cifar10", 'mnist', DS_PATH_CELEBA
+    from tqdm import tqdm
+    import random
+
+
+    transform = transforms.Compose(
+        [
+            transforms.RandomHorizontalFlip(p=0.3),
+            transforms.RandomResizedCrop(sz, scale=(0.5, 0.95), ratio=(1.3, 2.0)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ]
+    )
     loader_params = dict(
-        shuffle=True,
+        shuffle=False,
         drop_last=True,
         pin_memory=True,
     )
     for n in dataset_names:
         dataloader = get_cv_dataset(path=n,
-                                    image_size=32,
-                                    split='train',
+                                    image_size=sz,
+                                    split='validation',
                                     batch_size=2,
                                     num_workers=2,
                                     transform=transform,
                                     return_type="pair",
                                     return_loader=True,
+                                    convert_rgb=True,
                                     **loader_params
                                     )
         with tqdm(dataloader, dynamic_ncols=True, colour="#ff924a") as data:
             for images, label in data:
                 print(images.shape)
                 if n == 'mnist':
-                    assert (images.shape == torch.Size([2, 3, 32, 32]))
+                    assert (images.shape == torch.Size([2, 3, sz, sz]))
                 else:
-                    assert (images.shape == torch.Size([2, 3, 32, 32]))
+                    assert (images.shape == torch.Size([2, 3, sz, sz]))
                 imshow(images[0])
                 break
 
 
 if __name__ == "__main__":
-    verify_datasets()
+    verify_datasets((DS_PATH_APPLE_500,), sz=128)
+
     datasets = get_cv_dataset(path=DS_PATH_IMAGENETTE,
                               image_size=256,
                               split=None,
@@ -304,3 +347,5 @@ if __name__ == "__main__":
     datasets = get_cv_dataset(path=DS_PATH_IMAGENETTE, return_loader=False, name='full_size', split=None)
     validation_dataset = datasets["validation"]
     print(validation_dataset)
+
+
