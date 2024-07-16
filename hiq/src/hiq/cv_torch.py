@@ -3,17 +3,16 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from datasets import load_dataset, DatasetDict
-from PIL import Image
+import PIL
 from io import BytesIO
 
 # ------------ Data -----------------
-from hiq.in1k import IN_CAT, IN_MEAN, IN_STD
+from hiq.cv_torch_data import IN_CAT, IN_MEAN, IN_STD, CLS_FMNIST
 
 DS_PATH_IMAGENET_TINY64_100K = "zh-plus/tiny-imagenet"
 DS_PATH_IMAGENET1K = "imagenet-1k"
 DS_PATH_IMAGENET100 = "clane9/imagenet-100"
 DS_PATH_IMAGENETTE = "frgfm/imagenette"
-DS_PATH_OPENIMAGES = "dalle-mini/open-images"
 DS_PATH_HUMAN_5K = "jlbaker361/flickr_humans_5k"
 DS_PATH_COCO30K = "UCSC-VLAA/Recap-COCO-30K"
 DS_PATH_COCOPERSON = "Hamdy20002/COCO_Person"
@@ -43,7 +42,7 @@ DS_PATH_FFHQ64_70K = "Dmini/FFHQ-64x64"
 DS_PATH_FFHQ128_70K = "nuwandaa/ffhq128"
 DS_PATH_FFHQ_VINTAGE_1K = "AyoubChLin/FFHQ"
 DS_PATH_LSUN_CHURCH = "tglcourse/lsun_church_train"
-
+DS_PATH_OPENIMAGES = "dalle-mini/open-images"  #this has all the urls of the images
 
 
 class ImageLabelDataSet(Dataset):
@@ -58,7 +57,7 @@ class ImageLabelDataSet(Dataset):
         self.transform = transform
         self.max_num = max_num
         self.return_type = return_type
-        self.image_size = image_size
+        self.image_size_pair = (image_size, image_size) if isinstance(image_size, int) else image_size
         if img_key is None:
             self.img_key = 'image' if 'image' in self.dataset.column_names else 'img'
         else:
@@ -66,7 +65,8 @@ class ImageLabelDataSet(Dataset):
         self.label_key = 'label' if 'label' in self.dataset.column_names else 'lbl'
         self.convert_rgb = convert_rgb
         self.to_tensor_transform = transforms.ToTensor()
-        self.resize_transform = transforms.Resize((image_size, image_size))
+        if self.image_size_pair is not None:
+            self.resize_transform = transforms.Resize(image_size_pair)
         if self.label_key not in self.dataset.column_names:
             self.label_key = None
         if transform is None:
@@ -79,7 +79,7 @@ class ImageLabelDataSet(Dataset):
                     if isinstance(t, transforms.Resize) or isinstance(t, transforms.RandomResizedCrop):
                         contains_resize = True
                         break
-            if not contains_resize and image_size is not None:
+            if not contains_resize and self.image_size_pair is not None:
                 # Check the size of the first image in the dataset
                 first_image = self.dataset[self.img_key][0]
                 if isinstance(first_image, torch.Tensor):
@@ -87,23 +87,25 @@ class ImageLabelDataSet(Dataset):
                 first_image_size = first_image.size  # (width, height)
 
                 # Add a resize transform if image size does not match
-                if first_image_size != (self.image_size, self.image_size):
-                    resize_transform = transforms.Resize((self.image_size, self.image_size))
+                if first_image_size != self.image_size_pair:
+                    resize_transform = transforms.Resize(self.image_size_pair)
                     if self.transform:
                         # Insert the resize transform at the beginning
                         self.transform.transforms.append(resize_transform)
                     else:
-                        self.resize_transform = transforms.Resize((image_size, image_size))
+                        self.resize_transform = transforms.Resize(self.image_size_pair)
 
     def __len__(self):
         l = len(self.dataset)
         return min(l, self.max_num)
 
     def handle_pil_image(self, pil_img):
+        if isinstance(pil_img, PIL.JpegImagePlugin.JpegImageFile):
+            return pil_img
         with BytesIO() as output:
             pil_img.save(output, format='JPEG')
             img_bytes = output.getvalue()
-        img = Image.open(BytesIO(img_bytes))
+        img = PIL.Image.open(BytesIO(img_bytes))
         return img
 
 
@@ -143,11 +145,14 @@ def get_cv_dataset(path=DS_PATH_IMAGENETTE,
                    transform=None,
                    return_loader=False,
                    return_type='pair',
-                   convert_rgb=False,
+                   convert_rgb=True,
                    img_key=None,
                    datasetclass=ImageLabelDataSet,
                    max_num=int(1e100),
                    **loader_params):
+    """
+    image_size: None - no resize, otherwise resize to image_sizeximage_size
+    """
     if return_type not in ['image_only', 'pair', 'dict']:
         raise ValueError("return_type must be 'image_only' or 'pair' or 'dict'")
 
@@ -158,6 +163,7 @@ def get_cv_dataset(path=DS_PATH_IMAGENETTE,
     elif path == DS_PATH_IMAGENET1K:
         name = None
     elif path == DS_PATH_OPENIMAGES:
+        img_key = 'url'
         name = "default"
     elif path == DS_PATH_STDDOGS:
         img_key = 'pixel_values'

@@ -1,5 +1,10 @@
 import numpy as np
 
+
+#--------------------- FashionMINST ----------------------------
+CLS_FMNIST= ['T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat', 'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot']
+
+#--------------------- ImageNet-1K ----------------------------
 IN_MEAN = np.array([0.485, 0.456, 0.406])
 IN_STD = np.array([0.229, 0.224, 0.225])
 # imagenet class to folder and label name, ie. 0 => ["n01440764", "tench"]
