@@ -15,12 +15,12 @@ DS_PATH_IMAGENET100 = "clane9/imagenet-100"
 DS_PATH_IMAGENETTE = "frgfm/imagenette"
 DS_PATH_HUMAN_5K = "jlbaker361/flickr_humans_5k"
 DS_PATH_COCO30K = "UCSC-VLAA/Recap-COCO-30K"
-DS_PATH_COCOPERSON = "Hamdy20002/COCO_Person"
-DS_PATH_COCOCAP2017 = "lmms-lab/COCO-Caption2017"
-DS_PATH_STDDOGS = "amaye15/stanford-dogs"  # 14.4K
+DS_PATH_COCOPERSON_40K = "Hamdy20002/COCO_Person"
+DS_PATH_COCOCAP2017_5K = "lmms-lab/COCO-Caption2017"
+DS_PATH_STDDOGS_15K = "amaye15/stanford-dogs"  # 14.4K
 DS_PATH_OCRVQA = "howard-hou/OCR-VQA"
 DS_PATH_OCRINVREC = "mychen76/invoices-and-receipts_ocr_v1"
-DS_PATH_FASHION4 = "detection-datasets/fashionpedia_4_categories"
+DS_PATH_FASHION4_42K = "detection-datasets/fashionpedia_4_categories"
 DS_PATH_CELEBA_203K = "goodfellowliu/CelebA"
 DS_PATH_CELEBA_HQ_1K = "Rahafbk/celebA-HQ"
 DS_PATH_COCO122_117K = "detection-datasets/coco"  # 117K
@@ -40,7 +40,8 @@ DS_PATH_FFHQ128_20K = "AyoubChLin/FFHQ"
 DS_PATH_FFHQ32_70K = "idning/ffhq32-caption"
 DS_PATH_FFHQ64_70K = "Dmini/FFHQ-64x64"
 DS_PATH_FFHQ128_70K = "nuwandaa/ffhq128"
-DS_PATH_FFHQ_VINTAGE_1K = "AyoubChLin/FFHQ"
+DS_PATH_FFHQ_VINTAGE_1K = "Norod78/Vintage-Faces-FFHQAligned"
+DS_PATH_FFHQ1024_4K = "pravsels/FFHQ_1024"
 DS_PATH_LSUN_CHURCH = "tglcourse/lsun_church_train"
 DS_PATH_OPENIMAGES = "dalle-mini/open-images"  #this has all the urls of the images
 
@@ -66,7 +67,7 @@ class ImageLabelDataSet(Dataset):
         self.convert_rgb = convert_rgb
         self.to_tensor_transform = transforms.ToTensor()
         if self.image_size_pair is not None:
-            self.resize_transform = transforms.Resize(image_size_pair)
+            self.resize_transform = transforms.Resize(self.image_size_pair)
         if self.label_key not in self.dataset.column_names:
             self.label_key = None
         if transform is None:
@@ -165,7 +166,7 @@ def get_cv_dataset(path=DS_PATH_IMAGENETTE,
     elif path == DS_PATH_OPENIMAGES:
         img_key = 'url'
         name = "default"
-    elif path == DS_PATH_STDDOGS:
+    elif path == DS_PATH_STDDOGS_15K:
         img_key = 'pixel_values'
     elif path == DS_PATH_FFHQ512_30K:
         img_key = 'source_image'
