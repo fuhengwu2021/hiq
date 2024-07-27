@@ -640,11 +640,11 @@ def print_model(
         trainable_params, all_params, pct = model_parameters_stats(model)
         if trainable_params == all_params:
             tree_info = (
-                f"<all params:{trainable_params}>" if trainable_params is not None else ""
+                f"<all params:{trainable_params:,}>" if trainable_params is not None else ""
             )
         else:
             tree_info = (
-                f"<trainable_params:{trainable_params},all_params:{all_params},percentage:{pct:.5f}%>"
+                f"<trainable_params:{trainable_params:,}|all_params:{all_params:,}|percentage:{pct:.5f}%>"
                 if trainable_params is not None
                 else ""
             )

@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import transforms
 from datasets import load_dataset, DatasetDict
 import PIL
@@ -13,7 +13,10 @@ DS_PATH_IMAGENET_TINY64_100K = "zh-plus/tiny-imagenet"
 DS_PATH_IMAGENET1K = "imagenet-1k"
 DS_PATH_IMAGENET100 = "clane9/imagenet-100"
 DS_PATH_IMAGENETTE = "frgfm/imagenette"
-DS_PATH_HUMAN_5K = "jlbaker361/flickr_humans_5k"
+DS_PATH_PLANTS_600 = "swueste/plants"
+DS_PATH_PLANTS_300K = "mikehemberger/plantnet300K"
+DS_PATH_HUMAN512_5K = "jlbaker361/flickr_humans_5k"
+DS_PATH_HUMAN512_50K = "jlbaker361/flickr_humans_50k"
 DS_PATH_COCO30K = "UCSC-VLAA/Recap-COCO-30K"
 DS_PATH_COCOPERSON_40K = "Hamdy20002/COCO_Person"
 DS_PATH_COCOCAP2017_5K = "lmms-lab/COCO-Caption2017"
@@ -21,13 +24,14 @@ DS_PATH_STDDOGS_15K = "amaye15/stanford-dogs"  # 14.4K
 DS_PATH_OCRVQA = "howard-hou/OCR-VQA"
 DS_PATH_OCRINVREC = "mychen76/invoices-and-receipts_ocr_v1"
 DS_PATH_FASHION4_42K = "detection-datasets/fashionpedia_4_categories"
-DS_PATH_CELEBA_203K = "goodfellowliu/CelebA"
-DS_PATH_CELEBA_HQ_1K = "Rahafbk/celebA-HQ"
+DS_PATH_CELEBA178_203K = "goodfellowliu/CelebA"
+DS_PATH_CELEBA256_30K = "korexyz/celeba-hq-256x256"
+DS_PATH_CELEBA1024_15K = "PhilSad/celeba-hq-15k"
 DS_PATH_COCO122_117K = "detection-datasets/coco"  # 117K
 DS_PATH_PHOTOCHAT_HQ_120 = "friedrichor/PhotoChat_120_square_HQ"
+DS_PATH_LFW = "vilsonrodrigues/lfw"
 DS_PATH_FASHION_MNIST = "fashion_mnist"  # 60K, 10K
 DS_PATH_MNIST = "mnist"
-DS_PATH_PLANTS_600 = "swueste/plants"
 DS_PATH_HF_TEST = "hf-internal-testing/dummy_image_text_data"
 DS_PATH_DOGFOOD_3K = "sasha/dog-food" # train, test
 DS_PATH_OXFLOWER_7K = "nelorth/oxford-flowers"  # 8k
@@ -119,7 +123,7 @@ class ImageLabelDataSet(Dataset):
             img = img.convert('RGB')
         img = self.handle_pil_image(img)
         if self.transform is None:
-            if isinstance(self.image_size, int):
+            if isinstance(self.image_size_pair, tuple):
                 img = self.resize_transform(img)
             img = self.to_tensor_transform(img)
             img_ = self.normalize_transform(img)
@@ -238,6 +242,24 @@ def get_datasplit(d, s):
             return d['train']
     return d
 
+def ensure_split(d, train_ratio=0.9, val_key='test'):
+    assert train_ratio < 1.0
+    if isinstance(d, dict):
+        if 'train' in d and ('val' in d) or ('test' in d) or ('validation' in d):
+            return d
+        if 'train' in d and len(d.keys())==1:
+            r = d['train']
+        train_size = int(train_ratio * len(r))
+        val_size = len(r) - train_size
+        train_dataset, val_dataset = random_split(r, [train_size, val_size])
+        d['train'], d[val_key] = train_dataset, val_dataset
+    else:
+        train_size = int(train_ratio * len(d))
+        val_size = len(d) - train_size
+        train_dataset, val_dataset = random_split(d, [train_size, val_size])
+        d = {}
+        d['train'], d[val_key] = train_dataset, val_dataset
+    return d
 
 try:
     import lightning
